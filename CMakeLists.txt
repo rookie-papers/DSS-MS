@@ -47,4 +47,4 @@ function(add_scheme_executable name)
 endfunction()
 
 # Define benchmark target for the RTS signature scheme
-add_scheme_executable(your_exp)
+add_scheme_executable(DSS)
