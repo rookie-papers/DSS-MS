@@ -97,6 +97,12 @@ void ECP2_mul(ECP2 &P2, const mpz_class &t) {
     ECP2_mul(&P2, t1);
 }
 
+void FP12_pow(FP12 &fp12, const mpz_class &t) {
+    BIG t1;
+    mpz_to_BIG(t, t1);
+    FP12_pow(&fp12, &fp12, t1);
+}
+
 void initState(gmp_randstate_t &state) {
     gmp_randinit_default(state);
     gmp_randseed_ui(state, duration_cast<nanoseconds>(high_resolution_clock::now().time_since_epoch()).count());
@@ -252,7 +258,7 @@ bool concatOctet(octet *oc1, const octet *oc2) {
     if (!oc1 || !oc2 || !oc1->val) return false;
     int required_len = oc1->len + oc2->len;
     if (oc1->max < required_len) {
-        char *new_val = (char *)realloc(oc1->val, required_len);
+        char *new_val = (char *) realloc(oc1->val, required_len);
         if (!new_val) return false;
         oc1->val = new_val;
         oc1->max = required_len;

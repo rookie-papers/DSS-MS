@@ -90,6 +90,13 @@ void ECP_mul(ECP& P1, const mpz_class& t);
 void ECP2_mul(ECP2& P2, const mpz_class& t);
 
 /**
+ * Elliptic curve multiplication with constant using BIG
+ * @param FP12 Elliptic curve point
+ * @param t The multiplier
+ */
+void FP12_pow(FP12 &fp12, const mpz_class &t);
+
+/**
  * Initializes the random number generator in GMP
  * @param state Random number generator to be initialized
  */
