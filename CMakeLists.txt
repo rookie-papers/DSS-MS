@@ -49,3 +49,4 @@ endfunction()
 # Define benchmark target for the RTS signature scheme
 add_scheme_executable(DSS)
 add_scheme_executable(BFLS10)
+add_scheme_executable(DVAS)
