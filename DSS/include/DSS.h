@@ -67,9 +67,10 @@ mpz_class H(mpz_class m0, ECP R, ECP CH);
  * @param pp Public parameters.
  * @param sk Signing private key.
  * @param PK_s Sanitizer’s public key.
+ * @param t Proof key.
  * @return The generated signature.
  */
-Sigma Sign(Params pp, mpz_class sk, ECP PK_s);
+Sigma Sign(Params pp, mpz_class sk, ECP PK_s ,mpz_class& t);
 
 /**
  * Sanitization algorithm: a sanitizer transforms a signature using its private key.
@@ -79,7 +80,7 @@ Sigma Sign(Params pp, mpz_class sk, ECP PK_s);
  * @param PK_s Sanitizer’s public key.
  * @return The sanitized signature.
  */
-Sigma Sainting(Params pp, Sigma sigma, mpz_class sk_i, ECP PK_s);
+Sigma Sanitizing(Params pp, Sigma sigma, mpz_class sk_i, ECP PK_s);
 
 /**
  * Verify the validity of a signature (original or sanitized).
@@ -90,3 +91,26 @@ Sigma Sainting(Params pp, Sigma sigma, mpz_class sk_i, ECP PK_s);
  * @return Verification result: 1 if valid; 0 if invalid.
  */
 int Verify(Params pp, Sigma sigma, ECP PK_s, ECP PK);
+
+/**
+ * Only the original signer knows the secret t such that T = tP in the signature.
+ * Although a sanitizer can construct a new T', they do not know log_P(T').
+ * This property allows the original signer to prove that a given signature is indeed theirs.
+ *
+ * @param pp Public parameters.
+ * @param sigma The signature to be proven as original.
+ * @param t The trapdoor value (secret) required to generate the proof.
+ * @return Returns a non-interactive zero-knowledge proof (NIZK) for the relation t: T = tP.
+ */
+KeyPair Proof(Params pp,Sigma sigma,mpz_class t);
+
+/**
+ * Verifies the zero-knowledge proof pi against the given signature.
+ * If the proof is valid, the signature is confirmed to be from the original signer.
+ * If the proof is invalid or cannot be provided, the signature is considered sanitized.
+ *
+ * @param pi The zero-knowledge proof.
+ * @param sigma The signature to be verified.
+ * @return Returns true if the proof is valid and the signature is original; false otherwise.
+ */
+bool Judge(KeyPair pi,Sigma sigma);

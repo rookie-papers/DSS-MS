@@ -115,13 +115,16 @@ mpz_class H(mpz_class m0, ECP R, ECP CH) {
 }
 
 
-Sigma Sign(Params pp, mpz_class sk, ECP PK_s) {
+Sigma Sign(Params pp, mpz_class sk, ECP PK_s ,mpz_class& t) {
     Sigma sigma;
     initRNG(&rng);
 
     mpz_class r = rand_mpz(state);
     mpz_class s = rand_mpz(state);
-    ECP T = randECP(rng);
+    t = rand_mpz(state);
+    ECP T;
+    ECP_generator(&T);
+    ECP_mul(T, t);
     ECP R;
     ECP_generator(&R);
     ECP_mul(R, r);
@@ -151,7 +154,7 @@ Sigma Sign(Params pp, mpz_class sk, ECP PK_s) {
 }
 
 
-Sigma Sainting(Params pp, Sigma sigma, mpz_class sk_i, ECP PK_s) {
+Sigma Sanitizing(Params pp, Sigma sigma, mpz_class sk_i, ECP PK_s) {
     Sigma sigma_p;
     mpz_class sk_s = pp.u_s % sk_i;
 
@@ -211,6 +214,27 @@ int Verify(Params pp, Sigma sigma, ECP PK_s, ECP PK) {
     return ECP_equals(&left, &right);
 }
 
+KeyPair Proof(Params pp,Sigma sigma,mpz_class t){
+    KeyPair pi;
+    ECP_generator(&pi.PK);
+    mpz_class r = rand_mpz(state);
+    ECP_mul(pi.PK,r);
+    mpz_class c = H(sigma.m,pi.PK,sigma.T);
+    pi.sk = (r + c * t ) % pp.q;
+    return pi;
+}
+
+bool Judge(KeyPair pi,Sigma sigma){
+    ECP zP;
+    ECP_generator(&zP);
+    ECP_mul(zP, pi.sk);
+    ECP right;
+    ECP_copy(&right,&sigma.T);
+    mpz_class c = H(sigma.m,pi.PK,sigma.T);
+    ECP_mul(right,c);
+    ECP_add(&right,&pi.PK);
+    return ECP_equals(&zP,&right);
+}
 
 void showParams(Params pp) {
     printLine("showParams");
@@ -253,18 +277,24 @@ void testDSS(){
     keyPair_sign.sk = rand_mpz(state);
     ECP_copy(&keyPair_sign.PK, &pp.P);
     ECP_mul(keyPair_sign.PK, keyPair_sign.sk);
-    Sigma sigma = Sign(pp, keyPair_sign.sk, keyPair_san.PK);
+    mpz_class t;
+    Sigma sigma = Sign(pp, keyPair_sign.sk, keyPair_san.PK,t);
     showSigma(sigma);
 
     int res = Verify(pp, sigma, keyPair_san.PK, keyPair_sign.PK);
     cout << res << endl;
 
-    printLine("Saniting");
+    printLine("Sanitizing");
     for (int i = 0; i < k; i++) {
-        Sigma sigma_p = Sainting(pp, sigma, sk[i], keyPair_san.PK);
+        Sigma sigma_p = Sanitizing(pp, sigma, sk[i], keyPair_san.PK);
         res = Verify(pp, sigma_p, keyPair_san.PK, keyPair_sign.PK);
         cout << res << endl;
     }
+
+    printLine("Proof and Judge");
+    KeyPair pi = Proof(pp,sigma,t);
+    bool judge = Judge(pi,sigma);
+    cout << (judge ? "sig" : "san") << endl;
 }
 
 int main() {
