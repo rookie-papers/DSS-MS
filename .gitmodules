@@ -1,9 +1,11 @@
 [submodule "external/miracl_core"]
 	path = external/miracl_core
-	url = git@github.com:miracl/core.git
+	url = https://github.com/miracl/core.git
+
 [submodule "external/benchmark"]
 	path = external/benchmark
-	url = git@github.com:google/benchmark.git
+	url = https://github.com/google/benchmark.git
+
 [submodule "external/gmp"]
 	path = external/gmp
-	url = git@github.com:rookie-papers/GMP.git
+	url = https://github.com/rookie-papers/GMP.git
