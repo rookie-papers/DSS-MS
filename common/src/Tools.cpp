@@ -216,6 +216,7 @@ void show_mpz(mpz_t mpz) {
 octet getOctet(int maxLen) {
     octet S;
     S.val = (char *) malloc(maxLen);
+    memset(S.val, 0, maxLen);
     S.max = maxLen;
     S.len = 0;
     return S;
