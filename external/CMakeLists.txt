@@ -1,5 +1,5 @@
-
 # external/CMakeLists.txt
+file(MAKE_DIRECTORY ${CMAKE_BINARY_DIR}/gmp-install/include)
 
 # ------------------------  compile miracl, select BLS12381 curve  ----------------------------------
 set(MIRACL_CORE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/miracl_core)

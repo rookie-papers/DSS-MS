@@ -74,6 +74,7 @@ int main() {
         echo_server.set_message_handler(bind(&on_message, &echo_server, _1, _2));
         echo_server.listen(9002);
         echo_server.start_accept();
+        std::cout << "Sanitizer is listening on port 9002..." << std::endl;
         echo_server.run();
     } catch (const std::exception &e) {
         std::cout << "Server exception: " << e.what() << std::endl;

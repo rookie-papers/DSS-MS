@@ -28,7 +28,7 @@ int main() {
         C_server.set_message_handler(bind(&on_message, &C_server, _1, _2));
         C_server.listen(9003);
         C_server.start_accept();
-        std::cout << "C is listening on port 9003..." << std::endl;
+        std::cout << "Verifier is listening on port 9003..." << std::endl;
         C_server.run();
     } catch (const std::exception& e) {
         std::cerr << "Exception in C: " << e.what() << std::endl;
