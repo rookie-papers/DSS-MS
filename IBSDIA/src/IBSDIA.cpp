@@ -1,4 +1,5 @@
 #include "../include/IBSDIA.h"
+#include "benchmark/benchmark.h"
 
 csprng rng_DIA;
 gmp_randstate_t state_DIA;
@@ -248,21 +249,109 @@ bool ProofVerify_DIA(Proof_DIA proof, vector<int> chal_i, vector<mpz_class> chal
     return FP12_equals(&lhs, &rhs);
 }
 
-int main() {
+//int main() {
+//    initRNG(&rng_DIA);
+//    initState(state_DIA);
+//
+//    printLine("Setup");
+//    ECP msk;
+//    Params_DIA pp = Setup_DIA(msk);
+//
+//    printLine("Extract");
+//    mpz_class ID = rand_mpz(state_DIA);
+//    KeyPair_DIA keyPair = Extract_DIA(pp, ID, msk);
+//    int ok = Extract_verify(keyPair, pp);
+//    cout << "Extract verify result : " << ok << endl;
+//
+//    printLine("SinGen");
+//    Params_SSig pp_S = Setup_SSig();
+//    KeyPair_SSig ssk = SKGen(pp_S);
+//    Index_DIA idx;
+//    vector<int> K1 = {0};
+//    vector<int> K2 = {0}; // suppose K1 ∪ K2 = K1 ,otherwise, a function needs to be implemented to compute K1 ∪ K2
+//    int n = K1.size() + K2.size();
+//    initIndex(idx,K1,K2);
+//    vector<mpz_class> m;
+//    for (int i = 0; i < n; ++i) {
+//        m.push_back(rand_mpz(state_DIA));
+//    }
+//    Sigma_DIA sigma = SignGen_DIA(m,idx,msk,ID,keyPair,pp,ssk,pp_S);
+//
+//    //
+//    printLine("Sanitizing");
+//    Sigma_DIA sigma_p = Sanitization_DIA(sigma,pp,pp_S,ID,keyPair,idx);
+//
+//    printLine("ProofGen");
+//    vector<int> chal_i = {0};
+//    vector<mpz_class > chal_v;
+//    for (int i = 0; i < chal_i.size(); ++i) {
+//        chal_v.push_back(rand_mpz(state_DIA));
+//    }
+//    Proof_DIA proof = ProofGen_DIA(sigma.m_star, sigma, chal_i, chal_v);
+//
+//    printLine("Verify");
+//    bool valid = ProofVerify_DIA(proof, chal_i, chal_v, pp, ID, sigma.tau0);
+//    cout << "proof verified : " << valid << endl;
+//
+//    return 0;
+//}
+
+static void BM_Setup(benchmark::State &state) {
+    initRNG(&rng_DIA);
+    initState(state_DIA);
+    ECP msk;
+    for (auto _: state) {
+        Params_DIA pp = Setup_DIA(msk);
+    }
+}
+
+static void BM_KeyGen(benchmark::State &state) {
     initRNG(&rng_DIA);
     initState(state_DIA);
 
-    printLine("Setup");
     ECP msk;
     Params_DIA pp = Setup_DIA(msk);
+    mpz_class ID = rand_mpz(state_DIA);
+    for (auto _: state) {
+        KeyPair_DIA keyPair = Extract_DIA(pp, ID, msk);
+        Extract_verify(keyPair, pp);
+    }
+}
 
-    printLine("Extract");
+static void BM_Sign(benchmark::State &state) {
+    initRNG(&rng_DIA);
+    initState(state_DIA);
+    ECP msk;
+    Params_DIA pp = Setup_DIA(msk);
     mpz_class ID = rand_mpz(state_DIA);
     KeyPair_DIA keyPair = Extract_DIA(pp, ID, msk);
     int ok = Extract_verify(keyPair, pp);
-    cout << "Extract verify result : " << ok << endl;
+    Params_SSig pp_S = Setup_SSig();
+    KeyPair_SSig ssk = SKGen(pp_S);
+    Index_DIA idx;
+    vector<int> K1 = {0};
+    vector<int> K2 = {0}; // suppose K1 ∪ K2 = K1 ,otherwise, a function needs to be implemented to compute K1 ∪ K2
+    int n = K1.size() + K2.size();
+    initIndex(idx,K1,K2);
+    vector<mpz_class> m;
+    for (int i = 0; i < n; ++i) {
+        m.push_back(rand_mpz(state_DIA));
+    }
+    for (auto _: state) {
+        SignGen_DIA(m,idx,msk,ID,keyPair,pp,ssk,pp_S);
+    }
+}
 
-    printLine("SinGen");
+static void BM_Sanitizing(benchmark::State &state) {
+    initRNG(&rng_DIA);
+    initState(state_DIA);
+
+    ECP msk;
+    Params_DIA pp = Setup_DIA(msk);
+    mpz_class ID = rand_mpz(state_DIA);
+    KeyPair_DIA keyPair = Extract_DIA(pp, ID, msk);
+    int ok = Extract_verify(keyPair, pp);
+
     Params_SSig pp_S = Setup_SSig();
     KeyPair_SSig ssk = SKGen(pp_S);
     Index_DIA idx;
@@ -275,22 +364,85 @@ int main() {
         m.push_back(rand_mpz(state_DIA));
     }
     Sigma_DIA sigma = SignGen_DIA(m,idx,msk,ID,keyPair,pp,ssk,pp_S);
+    for (auto _: state) {
+        Sanitization_DIA(sigma,pp,pp_S,ID,keyPair,idx);
+    }
+}
 
-    //
-    printLine("Sanitizing");
+static void BM_ProofGen(benchmark::State &state) {
+    initRNG(&rng_DIA);
+    initState(state_DIA);
+
+    ECP msk;
+    Params_DIA pp = Setup_DIA(msk);
+
+    mpz_class ID = rand_mpz(state_DIA);
+    KeyPair_DIA keyPair = Extract_DIA(pp, ID, msk);
+    int ok = Extract_verify(keyPair, pp);
+
+    Params_SSig pp_S = Setup_SSig();
+    KeyPair_SSig ssk = SKGen(pp_S);
+    Index_DIA idx;
+    vector<int> K1 = {0};
+    vector<int> K2 = {0}; // suppose K1 ∪ K2 = K1 ,otherwise, a function needs to be implemented to compute K1 ∪ K2
+    int n = K1.size() + K2.size();
+    initIndex(idx,K1,K2);
+    vector<mpz_class> m;
+    for (int i = 0; i < n; ++i) {
+        m.push_back(rand_mpz(state_DIA));
+    }
+    Sigma_DIA sigma = SignGen_DIA(m,idx,msk,ID,keyPair,pp,ssk,pp_S);
     Sigma_DIA sigma_p = Sanitization_DIA(sigma,pp,pp_S,ID,keyPair,idx);
 
-    printLine("ProofGen");
+    vector<int> chal_i = {0};
+    vector<mpz_class > chal_v;
+    for (int i = 0; i < chal_i.size(); ++i) {
+        chal_v.push_back(rand_mpz(state_DIA));
+    }
+    for (auto _: state) {
+        Proof_DIA proof = ProofGen_DIA(sigma.m_star, sigma, chal_i, chal_v);
+    }
+}
+
+void BM_ProofVerify(benchmark::State &state) {
+    initRNG(&rng_DIA);
+    initState(state_DIA);
+    ECP msk;
+    Params_DIA pp = Setup_DIA(msk);
+    mpz_class ID = rand_mpz(state_DIA);
+    KeyPair_DIA keyPair = Extract_DIA(pp, ID, msk);
+    int ok = Extract_verify(keyPair, pp);
+    Params_SSig pp_S = Setup_SSig();
+    KeyPair_SSig ssk = SKGen(pp_S);
+    Index_DIA idx;
+    vector<int> K1 = {0};
+    vector<int> K2 = {0}; // suppose K1 ∪ K2 = K1 ,otherwise, a function needs to be implemented to compute K1 ∪ K2
+    int n = K1.size() + K2.size();
+    initIndex(idx,K1,K2);
+    vector<mpz_class> m;
+    for (int i = 0; i < n; ++i) {
+        m.push_back(rand_mpz(state_DIA));
+    }
+    Sigma_DIA sigma = SignGen_DIA(m,idx,msk,ID,keyPair,pp,ssk,pp_S);
+    Sigma_DIA sigma_p = Sanitization_DIA(sigma,pp,pp_S,ID,keyPair,idx);
     vector<int> chal_i = {0};
     vector<mpz_class > chal_v;
     for (int i = 0; i < chal_i.size(); ++i) {
         chal_v.push_back(rand_mpz(state_DIA));
     }
     Proof_DIA proof = ProofGen_DIA(sigma.m_star, sigma, chal_i, chal_v);
-
-    printLine("Verify");
-    bool valid = ProofVerify_DIA(proof, chal_i, chal_v, pp, ID, sigma.tau0);
-    cout << "proof verified : " << valid << endl;
-
-    return 0;
+    for (auto _: state) {
+        bool valid = ProofVerify_DIA(proof, chal_i, chal_v, pp, ID, sigma.tau0);
+    }
 }
+
+// register
+BENCHMARK(BM_Setup);
+BENCHMARK(BM_KeyGen);
+BENCHMARK(BM_Sign);
+BENCHMARK(BM_Sanitizing);
+BENCHMARK(BM_ProofGen);
+BENCHMARK(BM_ProofVerify);
+
+// run benchmark
+BENCHMARK_MAIN();

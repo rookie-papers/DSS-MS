@@ -1,4 +1,5 @@
 #include "../include/DVAS.h"
+#include "benchmark/benchmark.h"
 
 csprng rng_DVAS;
 gmp_randstate_t state_DVAS;
@@ -116,7 +117,6 @@ ECP H1_DVAS(mpz_class mi, ECP2 Vi, ECP fai) {
 //    return BIG_to_mpz(ret);
 //}
 
-
 Params_DVAS SetUp_DVAS(KeyPair_DVAS &MC, KeyPair_DVAS &EN, KeyPairDN_DVAS &DN, vector<SN_DVAS> &SN, int n) {
     Params_DVAS pp;
     ECP_generator(&pp.P);
@@ -151,7 +151,7 @@ Params_DVAS SetUp_DVAS(KeyPair_DVAS &MC, KeyPair_DVAS &EN, KeyPairDN_DVAS &DN, v
         ECP2_add(&right, &SNi.Ri);
 
         if (ECP2_equals(&Ui, &right)) {
-            cout << "In setup verify pass" << endl;
+//            cout << "In setup verify pass" << endl;
             SNi.keyPair.sk = ui;
             ECP2_copy(&SNi.keyPair.PK, &Ui);
             SN.push_back(SNi);
@@ -172,13 +172,12 @@ void Joining_DVAS(SN_DVAS SNi, ECP2 S, Omega &omega) {
     ECP2_add(&right, &SNi.Ri);
 
     if (ECP2_equals(&SNi.keyPair.PK, &right)) {
-        cout << "In Joining verify pass" << endl;
+//        cout << "In Joining verify pass" << endl;
         int ADM_size = 1;
         int FIX_size = 1;
         initOmega(omega, ADM_size, FIX_size);
     }
 }
-
 
 vector<Sigma_i_DVAS> Signing_DVAS(SN_DVAS SN, Params_DVAS pp, vector<mpz_class> m, Omega omega) {
     vector<Sigma_i_DVAS> sigma;
@@ -232,7 +231,7 @@ vector<Sigma_i_DVAS> Sanitizing_DVAS(vector<mpz_class> m,vector<Sigma_i_DVAS> si
         FP12 rhs = e(H0i, SNi.keyPair.PK);
         FP12 e2 = e(H1i, sigma_vec[i].Vi);
         FP12_mul(&rhs, &e2);
-        cout << "Sanitizing verification passed : " << FP12_equals(&lhs, &rhs) << endl;
+//        cout << "Sanitizing verification passed : " << FP12_equals(&lhs, &rhs) << endl;
         if (i >= omega.ADM.size()) {
             sanitized_sigma.push_back(sigma_i);  // FIX jump
             continue;
@@ -305,46 +304,200 @@ void Detect_DVAS(mpz_class mi, vector<Sigma_i_DVAS> sigma, SN_DVAS SN, Omega ome
     FP12 left = e(sigma[idx].fai_i, P2);
     FP12 right = e(tkY, SN.keyPair.PK);
     int ok = FP12_equals(&left, &right);
-    cout << "Detect OK ?: " << ok << endl;
+//    cout << "Detect OK ?: " << ok << endl;
     // If it's ADM detection, an additional verification of m' == f\_mod(m) is required here, which is omitted.
 }
 
-int main() {
+//int main() {
+//    initState(state_DVAS);
+//    int n = 3; // The number of SN
+//    Omega omega;
+//    //
+//    printLine("setup");
+//    KeyPair_DVAS MC, EN;
+//    KeyPairDN_DVAS DN;
+//    vector<SN_DVAS> SNs;
+//    Params_DVAS pp = SetUp_DVAS(MC, EN, DN, SNs, n);
+//    //
+//    printLine("joining");
+//    for (int i = 0; i < n; ++i) {
+//        Joining_DVAS(SNs[i], MC.PK, omega);
+//    }
+//    //
+//    printLine("Signing");
+//    vector<mpz_class> m;
+//    for (int i = 0; i < omega.ADM.size() + omega.FIX.size(); ++i) {
+//        m.push_back(rand_mpz(state_DVAS));
+//    }
+//    int signer_idx = n / 2;
+//    vector<Sigma_i_DVAS> sigma = Signing_DVAS(SNs[signer_idx], pp, m, omega);
+//    cout << "sigma.size = " << sigma.size() << endl;
+//    //
+//    printLine("Sanitizing");
+//    vector<Sigma_i_DVAS> sigma_sanitized = Sanitizing_DVAS(m, sigma, pp, SNs[signer_idx], EN, omega);
+//    //
+//    printLine("Verify");
+//    bool ok = Verify_DVAS(m, sigma, SNs[signer_idx], pp);
+//    cout << "verification passed : " << ok << endl;
+//    //
+//    printLine("Detect");
+//    int flag = 0; // Set to 0 for non-sensitive information, otherwise set to 1.
+//    int idx = omega.ADM.size() + omega.FIX.size() - 1;
+//    if (flag != 0) idx = 0;
+//    Detect_DVAS(m[idx], sigma, SNs[signer_idx], omega, pp, flag);
+//    return 0;
+//}
+
+static void BM_Setup(benchmark::State &state) {
     initState(state_DVAS);
     int n = 3; // The number of SN
     Omega omega;
     //
-    printLine("setup");
+    KeyPair_DVAS MC, EN;
+    KeyPairDN_DVAS DN;
+    vector<SN_DVAS> SNs;
+    for (auto _: state) {
+        SetUp_DVAS(MC, EN, DN, SNs, n);
+    }
+}
+
+static void BM_Join(benchmark::State &state) {
+    initState(state_DVAS);
+    int n = 3; // The number of SN
+    Omega omega;
+    //
+    KeyPair_DVAS MC, EN;
+    KeyPairDN_DVAS DN;
+    vector<SN_DVAS> SNs;
+    Params_DVAS pp = SetUp_DVAS(MC, EN, DN, SNs, n);
+
+    for (auto _: state) {
+        Joining_DVAS(SNs[0], MC.PK, omega);
+
+    }
+}
+
+static void BM_Sign(benchmark::State &state) {
+    initState(state_DVAS);
+    int n = 3; // The number of SN
+    Omega omega;
+    //
     KeyPair_DVAS MC, EN;
     KeyPairDN_DVAS DN;
     vector<SN_DVAS> SNs;
     Params_DVAS pp = SetUp_DVAS(MC, EN, DN, SNs, n);
     //
-    printLine("joining");
     for (int i = 0; i < n; ++i) {
         Joining_DVAS(SNs[i], MC.PK, omega);
     }
     //
-    printLine("Signing");
+    vector<mpz_class> m;
+    for (int i = 0; i < omega.ADM.size() + omega.FIX.size(); ++i) {
+        m.push_back(rand_mpz(state_DVAS));
+    }
+    int signer_idx = n / 2;
+    for (auto _: state) {
+        vector<Sigma_i_DVAS> sigma = Signing_DVAS(SNs[signer_idx], pp, m, omega);
+
+    }
+}
+
+
+static void BM_Sanitizing(benchmark::State &state) {
+    initState(state_DVAS);
+    int n = 3; // The number of SN
+    Omega omega;
+    //
+    KeyPair_DVAS MC, EN;
+    KeyPairDN_DVAS DN;
+    vector<SN_DVAS> SNs;
+    Params_DVAS pp = SetUp_DVAS(MC, EN, DN, SNs, n);
+    //
+    for (int i = 0; i < n; ++i) {
+        Joining_DVAS(SNs[i], MC.PK, omega);
+    }
+    //
     vector<mpz_class> m;
     for (int i = 0; i < omega.ADM.size() + omega.FIX.size(); ++i) {
         m.push_back(rand_mpz(state_DVAS));
     }
     int signer_idx = n / 2;
     vector<Sigma_i_DVAS> sigma = Signing_DVAS(SNs[signer_idx], pp, m, omega);
-    cout << "sigma.size = " << sigma.size() << endl;
     //
-    printLine("Sanitizing");
+    for (auto _: state) {
+        Sanitizing_DVAS(m, sigma, pp, SNs[signer_idx], EN, omega);
+    }
+}
+
+static void BM_Verify(benchmark::State &state) {
+    initState(state_DVAS);
+    int n = 3; // The number of SN
+    Omega omega;
+    //
+    KeyPair_DVAS MC, EN;
+    KeyPairDN_DVAS DN;
+    vector<SN_DVAS> SNs;
+    Params_DVAS pp = SetUp_DVAS(MC, EN, DN, SNs, n);
+    //
+    for (int i = 0; i < n; ++i) {
+        Joining_DVAS(SNs[i], MC.PK, omega);
+    }
+    //
+    vector<mpz_class> m;
+    for (int i = 0; i < omega.ADM.size() + omega.FIX.size(); ++i) {
+        m.push_back(rand_mpz(state_DVAS));
+    }
+    int signer_idx = n / 2;
+    vector<Sigma_i_DVAS> sigma = Signing_DVAS(SNs[signer_idx], pp, m, omega);
+    //
     vector<Sigma_i_DVAS> sigma_sanitized = Sanitizing_DVAS(m, sigma, pp, SNs[signer_idx], EN, omega);
     //
-    printLine("Verify");
-    bool ok = Verify_DVAS(m, sigma, SNs[signer_idx], pp);
-    cout << "verification passed : " << ok << endl;
+    for (auto _: state) {
+        Verify_DVAS(m, sigma, SNs[signer_idx], pp);
+    }
+}
+
+void BM_Detect(benchmark::State &state) {
+    initState(state_DVAS);
+    int n = 3; // The number of SN
+    Omega omega;
     //
-    printLine("Detect");
+    KeyPair_DVAS MC, EN;
+    KeyPairDN_DVAS DN;
+    vector<SN_DVAS> SNs;
+    Params_DVAS pp = SetUp_DVAS(MC, EN, DN, SNs, n);
+    //
+    for (int i = 0; i < n; ++i) {
+        Joining_DVAS(SNs[i], MC.PK, omega);
+    }
+    //
+    vector<mpz_class> m;
+    for (int i = 0; i < omega.ADM.size() + omega.FIX.size(); ++i) {
+        m.push_back(rand_mpz(state_DVAS));
+    }
+    int signer_idx = n / 2;
+    vector<Sigma_i_DVAS> sigma = Signing_DVAS(SNs[signer_idx], pp, m, omega);
+    //
+    vector<Sigma_i_DVAS> sigma_sanitized = Sanitizing_DVAS(m, sigma, pp, SNs[signer_idx], EN, omega);
+    //
+    bool ok = Verify_DVAS(m, sigma, SNs[signer_idx], pp);
+    //
     int flag = 0; // Set to 0 for non-sensitive information, otherwise set to 1.
     int idx = omega.ADM.size() + omega.FIX.size() - 1;
     if (flag != 0) idx = 0;
-    Detect_DVAS(m[idx], sigma, SNs[signer_idx], omega, pp, flag);
-    return 0;
+
+    for (auto _: state) {
+        Detect_DVAS(m[idx], sigma, SNs[signer_idx], omega, pp, flag);
+    }
 }
+
+// register
+BENCHMARK(BM_Setup);
+BENCHMARK(BM_Join);
+BENCHMARK(BM_Sign);
+BENCHMARK(BM_Sanitizing);
+BENCHMARK(BM_Verify);
+BENCHMARK(BM_Detect);
+
+// run benchmark
+BENCHMARK_MAIN();

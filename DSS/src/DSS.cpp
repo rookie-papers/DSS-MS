@@ -1,7 +1,8 @@
 #include "../include/DSS.h"
+#include "benchmark/benchmark.h"
 
 csprng rng;
-gmp_randstate_t state;
+gmp_randstate_t state_DSS;
 
 // Determine whether a and b are coprime
 bool are_coprime(const mpz_class &a, const mpz_class &b) {
@@ -26,7 +27,7 @@ vector<mpz_class> KeyGen(Params &pp, KeyPair &keyPair, int k, int bits) {
     while ((int) sk.size() < k) {
         mpz_class n;
         while (true) {
-            mpz_urandomb(n.get_mpz_t(), state, bits);
+            mpz_urandomb(n.get_mpz_t(), state_DSS, bits);
             if (mpz_sizeinbase(n.get_mpz_t(), 2) >= (bits - 5)) break;
         }
         n |= 1; // Force odd to avoid even common factors
@@ -49,7 +50,7 @@ vector<mpz_class> KeyGen(Params &pp, KeyPair &keyPair, int k, int bits) {
         M *= sk_i;
     }
     // Generate private key and public key for sanitor
-    mpz_urandomb(keyPair.sk.get_mpz_t(), state, bits - 5);
+    mpz_urandomb(keyPair.sk.get_mpz_t(), state_DSS, bits - 5);
     ECP_generator(&keyPair.PK);
     ECP_mul(keyPair.PK, keyPair.sk);
     // compute M_i and y_i (M_i * y_i ≡ 1 mod sk[i])
@@ -115,13 +116,13 @@ mpz_class H(mpz_class m0, ECP R, ECP CH) {
 }
 
 
-Sigma Sign(Params pp, mpz_class sk, ECP PK_s ,mpz_class& t) {
+Sigma Sign(Params pp, mpz_class sk, ECP PK_s, mpz_class &t) {
     Sigma sigma;
     initRNG(&rng);
 
-    mpz_class r = rand_mpz(state);
-    mpz_class s = rand_mpz(state);
-    t = rand_mpz(state);
+    mpz_class r = rand_mpz(state_DSS);
+    mpz_class s = rand_mpz(state_DSS);
+    t = rand_mpz(state_DSS);
     ECP T;
     ECP_generator(&T);
     ECP_mul(T, t);
@@ -129,8 +130,8 @@ Sigma Sign(Params pp, mpz_class sk, ECP PK_s ,mpz_class& t) {
     ECP_generator(&R);
     ECP_mul(R, r);
 
-    mpz_class m0 = rand_mpz(state);
-    mpz_class m = rand_mpz(state);
+    mpz_class m0 = rand_mpz(state_DSS);
+    mpz_class m = rand_mpz(state_DSS);
     mpz_class e = H_ch(m, T);
     ECP CH, temp;
     ECP_copy(&temp, &pp.P);
@@ -167,8 +168,8 @@ Sigma Sanitizing(Params pp, Sigma sigma, mpz_class sk_i, ECP PK_s) {
     ECP_add(&CH, &temp);
     ECP_add(&CH, &sigma.T);
 
-    mpz_class m_p = rand_mpz(state);
-    mpz_class k = rand_mpz(state);
+    mpz_class m_p = rand_mpz(state_DSS);
+    mpz_class k = rand_mpz(state_DSS);
     ECP T_p;
     ECP_copy(&T_p, &CH);
     ECP K;
@@ -214,26 +215,26 @@ int Verify(Params pp, Sigma sigma, ECP PK_s, ECP PK) {
     return ECP_equals(&left, &right);
 }
 
-KeyPair Proof(Params pp,Sigma sigma,mpz_class t){
+KeyPair Proof(Params pp, Sigma sigma, mpz_class t) {
     KeyPair pi;
     ECP_generator(&pi.PK);
-    mpz_class r = rand_mpz(state);
-    ECP_mul(pi.PK,r);
-    mpz_class c = H(sigma.m,pi.PK,sigma.T);
-    pi.sk = (r + c * t ) % pp.q;
+    mpz_class r = rand_mpz(state_DSS);
+    ECP_mul(pi.PK, r);
+    mpz_class c = H(sigma.m, pi.PK, sigma.T);
+    pi.sk = (r + c * t) % pp.q;
     return pi;
 }
 
-bool Judge(KeyPair pi,Sigma sigma){
+bool Judge(KeyPair pi, Sigma sigma) {
     ECP zP;
     ECP_generator(&zP);
     ECP_mul(zP, pi.sk);
     ECP right;
-    ECP_copy(&right,&sigma.T);
-    mpz_class c = H(sigma.m,pi.PK,sigma.T);
-    ECP_mul(right,c);
-    ECP_add(&right,&pi.PK);
-    return ECP_equals(&zP,&right);
+    ECP_copy(&right, &sigma.T);
+    mpz_class c = H(sigma.m, pi.PK, sigma.T);
+    ECP_mul(right, c);
+    ECP_add(&right, &pi.PK);
+    return ECP_equals(&zP, &right);
 }
 
 void showParams(Params pp) {
@@ -263,10 +264,10 @@ void showSigma(Sigma sigma) {
 }
 
 
-void testDSS(){
+void testDSS() {
     int k = 5;// The number of sanitizor
     int bits = 256;
-    initState(state);
+    initState(state_DSS);
     Params pp = Setup();
 
     KeyPair keyPair_san;
@@ -274,11 +275,11 @@ void testDSS(){
     showParams(pp);
 
     KeyPair keyPair_sign;
-    keyPair_sign.sk = rand_mpz(state);
+    keyPair_sign.sk = rand_mpz(state_DSS);
     ECP_copy(&keyPair_sign.PK, &pp.P);
     ECP_mul(keyPair_sign.PK, keyPair_sign.sk);
     mpz_class t;
-    Sigma sigma = Sign(pp, keyPair_sign.sk, keyPair_san.PK,t);
+    Sigma sigma = Sign(pp, keyPair_sign.sk, keyPair_san.PK, t);
     showSigma(sigma);
 
     int res = Verify(pp, sigma, keyPair_san.PK, keyPair_sign.PK);
@@ -292,12 +293,149 @@ void testDSS(){
     }
 
     printLine("Proof and Judge");
-    KeyPair pi = Proof(pp,sigma,t);
-    bool judge = Judge(pi,sigma);
+    KeyPair pi = Proof(pp, sigma, t);
+    bool judge = Judge(pi, sigma);
     cout << (judge ? "sig" : "san") << endl;
 }
 
-int main() {
-    testDSS();
-    return 0;
+//int main() {
+//    testDSS();
+//    return 0;
+//}
+
+static void BM_Setup(benchmark::State &state) {
+    int k = 5;// The number of sanitizor
+    int bits = 256;
+    initState(state_DSS);
+    for (auto _: state) {
+        Params pp = Setup();
+    }
 }
+
+static void BM_KeyGen(benchmark::State &state) {
+    int k = 5;// The number of sanitizor
+    int bits = 256;
+    initState(state_DSS);
+    Params pp = Setup();
+
+    KeyPair keyPair_san;
+    for (auto _: state) {
+        vector<mpz_class> sk = KeyGen(pp, keyPair_san, k, bits);
+    }
+}
+
+static void BM_Sign(benchmark::State &state) {
+    int k = 5;// The number of sanitizor
+    int bits = 256;
+    initState(state_DSS);
+    Params pp = Setup();
+
+    KeyPair keyPair_san;
+    vector<mpz_class> sk = KeyGen(pp, keyPair_san, k, bits);
+
+    KeyPair keyPair_sign;
+    keyPair_sign.sk = rand_mpz(state_DSS);
+    ECP_copy(&keyPair_sign.PK, &pp.P);
+    ECP_mul(keyPair_sign.PK, keyPair_sign.sk);
+    mpz_class t;
+
+    for (auto _: state) {
+        Sigma sigma = Sign(pp, keyPair_sign.sk, keyPair_san.PK, t);
+    }
+}
+
+static void BM_Sanitizing(benchmark::State &state) {
+    int k = 5;// The number of sanitizor
+    int bits = 256;
+    initState(state_DSS);
+    Params pp = Setup();
+
+    KeyPair keyPair_san;
+    vector<mpz_class> sk = KeyGen(pp, keyPair_san, k, bits);
+
+    KeyPair keyPair_sign;
+    keyPair_sign.sk = rand_mpz(state_DSS);
+    ECP_copy(&keyPair_sign.PK, &pp.P);
+    ECP_mul(keyPair_sign.PK, keyPair_sign.sk);
+    mpz_class t;
+    Sigma sigma = Sign(pp, keyPair_sign.sk, keyPair_san.PK, t);
+    for (auto _: state) {
+        Sigma sigma_p = Sanitizing(pp, sigma, sk[0], keyPair_san.PK);
+    }
+}
+
+static void BM_Verify(benchmark::State &state) {
+    int k = 5;// The number of sanitizor
+    int bits = 256;
+    initState(state_DSS);
+    Params pp = Setup();
+
+    KeyPair keyPair_san;
+    vector<mpz_class> sk = KeyGen(pp, keyPair_san, k, bits);
+
+    KeyPair keyPair_sign;
+    keyPair_sign.sk = rand_mpz(state_DSS);
+    ECP_copy(&keyPair_sign.PK, &pp.P);
+    ECP_mul(keyPair_sign.PK, keyPair_sign.sk);
+    mpz_class t;
+    Sigma sigma = Sign(pp, keyPair_sign.sk, keyPair_san.PK, t);
+    Sigma sigma_p = Sanitizing(pp, sigma, sk[0], keyPair_san.PK);
+    for (auto _: state) {
+        Verify(pp, sigma_p, keyPair_san.PK, keyPair_sign.PK);
+    }
+}
+
+void BM_Proof(benchmark::State &state) {
+    int k = 5;// The number of sanitizor
+    int bits = 256;
+    initState(state_DSS);
+    Params pp = Setup();
+
+    KeyPair keyPair_san;
+    vector<mpz_class> sk = KeyGen(pp, keyPair_san, k, bits);
+
+    KeyPair keyPair_sign;
+    keyPair_sign.sk = rand_mpz(state_DSS);
+    ECP_copy(&keyPair_sign.PK, &pp.P);
+    ECP_mul(keyPair_sign.PK, keyPair_sign.sk);
+    mpz_class t;
+    Sigma sigma = Sign(pp, keyPair_sign.sk, keyPair_san.PK, t);
+    Sigma sigma_p = Sanitizing(pp, sigma, sk[0], keyPair_san.PK);
+    for (auto _: state) {
+        Proof(pp, sigma, t);
+    }
+}
+
+void BM_Judge(benchmark::State &state) {
+    int k = 5;// The number of sanitizor
+    int bits = 256;
+    initState(state_DSS);
+    Params pp = Setup();
+
+    KeyPair keyPair_san;
+    vector<mpz_class> sk = KeyGen(pp, keyPair_san, k, bits);
+
+    KeyPair keyPair_sign;
+    keyPair_sign.sk = rand_mpz(state_DSS);
+    ECP_copy(&keyPair_sign.PK, &pp.P);
+    ECP_mul(keyPair_sign.PK, keyPair_sign.sk);
+    mpz_class t;
+    Sigma sigma = Sign(pp, keyPair_sign.sk, keyPair_san.PK, t);
+    Sigma sigma_p = Sanitizing(pp, sigma, sk[0], keyPair_san.PK);
+    KeyPair pi = Proof(pp, sigma, t);
+    for (auto _: state) {
+        Judge(pi, sigma);
+    }
+}
+
+// register
+BENCHMARK(BM_Setup);
+BENCHMARK(BM_KeyGen);
+BENCHMARK(BM_Sign);
+BENCHMARK(BM_Sanitizing);
+BENCHMARK(BM_Verify);
+BENCHMARK(BM_Proof);
+BENCHMARK(BM_Judge);
+
+// run benchmark
+BENCHMARK_MAIN();
