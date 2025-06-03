@@ -1,9 +1,10 @@
-cmake_minimum_required(VERSION 3.28)
-project(template-miracl-exp)
+cmake_minimum_required(VERSION 3.14)
+project(DSS-MS)
 set(CMAKE_CXX_STANDARD 17)
 
 # Build external libraries (e.g., MIRACL Core, GMP, Benchmark)
 add_subdirectory(external)
+add_subdirectory(DSS-websocket)
 
 # Include paths for common headers shared across all schemes
 include_directories(

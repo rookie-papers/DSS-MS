@@ -9,3 +9,6 @@
 [submodule "external/gmp"]
 	path = external/gmp
 	url = https://github.com/rookie-papers/GMP.git
+[submodule "external/websocketpp"]
+	path = external/websocketpp
+	url = https://github.com/zaphoyd/websocketpp.git
