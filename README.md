@@ -27,13 +27,12 @@ sudo apt install -y git cmake python3 build-essential m4 libboost-all-dev
 
 ### 2️⃣ Clone repository with submodules and build with CMake:
 
-Using -DCMAKE_BUILD_TYPE=Release to avoid debug-mode overhead and get reliable benchmark timings.
-
+Using `-DCMAKE_BUILD_TYPE=Release` `-DBENCHMARK_ENABLE_WERROR=OFF` to avoid debug-mode overhead and prevent benchmark warnings from being treated as errors during compilation.
 ```bash
 git clone --recurse-submodules https://github.com/rookie-papers/DSS-MS.git
 cd DSS-MS
 mkdir build && cd build
-cmake -DCMAKE_BUILD_TYPE=Release ..
+cmake -DCMAKE_BUILD_TYPE=Release -DBENCHMARK_ENABLE_WERROR=OFF ..
 make 
 ```
 

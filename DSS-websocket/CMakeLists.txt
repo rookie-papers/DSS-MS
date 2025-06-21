@@ -1,3 +1,5 @@
+find_package(Boost REQUIRED COMPONENTS system thread)
+
 file(GLOB SCHEME_SRC_FILES src/*.cpp)
 
 file(GLOB COMMON_SRC
