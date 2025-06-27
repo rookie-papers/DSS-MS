@@ -3,6 +3,16 @@
 
 csprng rng;
 gmp_randstate_t state_DSS;
+typedef struct {
+    vector<mpz_class> sk;
+    mpz_class M;
+    mpz_class u;
+} CRT;
+CRT crt;
+
+#define SAN 3000
+#define BITS 256
+#define N 10
 
 // Determine whether a and b are coprime
 bool are_coprime(const mpz_class &a, const mpz_class &b) {
@@ -22,33 +32,23 @@ Params Setup() {
 }
 
 vector<mpz_class> KeyGen(Params &pp, KeyPair &keyPair, int k, int bits) {
-    std::vector<mpz_class> sk;
-    // Generate k large integers n_i such that 2^(bits-5) < n < 2^bits
-    while ((int) sk.size() < k) {
-        mpz_class n;
+    vector<mpz_class> sks;
+    mpz_class sk, M_batch = 1;
+    int count = 0;
+    while (count < k) {
         while (true) {
-            mpz_urandomb(n.get_mpz_t(), state_DSS, bits);
-            if (mpz_sizeinbase(n.get_mpz_t(), 2) >= (bits - 5)) break;
+            mpz_urandomb(sk.get_mpz_t(), state_DSS, bits);
+            if (mpz_sizeinbase(sk.get_mpz_t(), 2) >= bits - 5) break;
         }
-        n |= 1; // Force odd to avoid even common factors
-        if (n == 0) continue;
-        // Ensure n is coprime with all previously chosen numbers
-        bool ok = true;
-        for (const auto &m: sk) {
-            if (!are_coprime(n, m)) {
-                ok = false;
-                break;
-            }
-        }
-        if (ok) {
-            sk.push_back(n);
+
+        sk |= 1;
+        if (gcd(sk, M_batch) == 1) {
+            sks.push_back(sk);
+            M_batch *= sk;
+            ++count;
         }
     }
-    // Compute M = product of all n_i
-    mpz_class M = 1;
-    for (const auto &sk_i: sk) {
-        M *= sk_i;
-    }
+
     // Generate private key and public key for sanitor
     mpz_urandomb(keyPair.sk.get_mpz_t(), state_DSS, bits - 5);
     ECP_generator(&keyPair.PK);
@@ -56,15 +56,18 @@ vector<mpz_class> KeyGen(Params &pp, KeyPair &keyPair, int k, int bits) {
     // compute M_i and y_i (M_i * y_i ≡ 1 mod sk[i])
     std::vector<mpz_class> M_i(k), y_i(k);
     for (int i = 0; i < k; ++i) {
-        M_i[i] = M / sk[i];
-        y_i[i] = invert_mpz(M_i[i], sk[i]);
+        M_i[i] = M_batch / sks[i];
+        y_i[i] = invert_mpz(M_i[i], sks[i]);
     }
     mpz_class u = 0;
     for (int i = 0; i < k; ++i) {
         u += y_i[i] * M_i[i];
     }
+    crt.sk = sks;
+    crt.M = M_batch;
+    crt.u = u;
     pp.u_s = keyPair.sk * u;
-    return sk;
+    return sks;
 }
 
 mpz_class H_ch(mpz_class m, ECP T) {
@@ -237,6 +240,48 @@ bool Judge(KeyPair pi, Sigma sigma) {
     return ECP_equals(&zP, &right);
 }
 
+void Join(Params &pp, mpz_class sk_san, int bits,int n) {
+    mpz_class M_batch = 1;
+    mpz_class sk_star;
+    int i = 0;
+    while (i < n) {
+        while (true) {
+            mpz_urandomb(sk_star.get_mpz_t(), state_DSS, bits);
+            if (mpz_sizeinbase(sk_star.get_mpz_t(), 2) >= (bits - 5)) break;
+        }
+        sk_star |= 1;
+        if (gcd(sk_star, crt.M) == 1 && gcd(sk_star, M_batch) == 1) {
+            crt.sk.push_back(sk_star);
+            M_batch *= sk_star;
+            i++;
+        }
+    }
+
+    crt.M = 1;
+    for (const auto &m: crt.sk) crt.M *= m;
+
+    crt.u = 0;
+    int len = crt.sk.size();
+    for (int i = 0; i < len; ++i) {
+        mpz_class Mi = crt.M / crt.sk[i];
+        mpz_class yi = invert_mpz(Mi, crt.sk[i]);
+        crt.u += Mi * yi;
+    }
+    pp.u_s = sk_san * crt.u;
+}
+
+void Revoke(Params &pp, mpz_class sk_san, const vector<mpz_class> &sk_star_list) {
+    for (const auto &sk_star : sk_star_list) {
+        auto it = std::find(crt.sk.begin(), crt.sk.end(), sk_star);
+        if (it != crt.sk.end()) crt.sk.erase(it);
+        mpz_class M_star = crt.M / sk_star;
+        mpz_class y_star = invert_mpz(M_star, sk_star);
+        crt.u -= M_star * y_star;
+        crt.M = M_star;
+    }
+    pp.u_s = sk_san * crt.u;
+}
+
 void showParams(Params pp) {
     printLine("showParams");
     cout << "pp.P = ";
@@ -265,13 +310,11 @@ void showSigma(Sigma sigma) {
 
 
 void testDSS() {
-    int k = 5;// The number of sanitizor
-    int bits = 256;
     initState(state_DSS);
     Params pp = Setup();
 
     KeyPair keyPair_san;
-    vector<mpz_class> sk = KeyGen(pp, keyPair_san, k, bits);
+    vector<mpz_class> sk = KeyGen(pp, keyPair_san, SAN, BITS);
     showParams(pp);
 
     KeyPair keyPair_sign;
@@ -286,7 +329,7 @@ void testDSS() {
     cout << res << endl;
 
     printLine("Sanitizing");
-    for (int i = 0; i < k; i++) {
+    for (int i = 0; i < SAN; i++) {
         Sigma sigma_p = Sanitizing(pp, sigma, sk[i], keyPair_san.PK);
         res = Verify(pp, sigma_p, keyPair_san.PK, keyPair_sign.PK);
         cout << res << endl;
@@ -296,6 +339,25 @@ void testDSS() {
     KeyPair pi = Proof(pp, sigma, t);
     bool judge = Judge(pi, sigma);
     cout << (judge ? "sig" : "san") << endl;
+
+    printLine("Join");
+    cout << "Join before sk.size() = " << crt.sk.size() << endl;
+    Join(pp, keyPair_san.sk, BITS,N);
+    cout << "Join after sk.size() = " << crt.sk.size() << endl;
+    for (int i = 0; i < crt.sk.size(); ++i) {
+        mpz_class sk_san = pp.u_s % crt.sk[i];
+        show_mpz(sk_san.get_mpz_t());
+    }
+
+    printLine("Revoke");
+    cout << "Revoke before sk.size() = " << crt.sk.size() << endl;
+    vector<mpz_class> sk_star_lists(sk.begin(), sk.begin() + N);
+    Revoke(pp, keyPair_san.sk, sk_star_lists);
+    cout << "Revoke after sk.size() = "<< crt.sk.size() << endl;
+    for (int i = 0; i < crt.sk.size(); ++i) {
+        mpz_class sk_san = pp.u_s % crt.sk[i];
+        show_mpz(sk_san.get_mpz_t());
+    }
 }
 
 //int main() {
@@ -303,35 +365,29 @@ void testDSS() {
 //    return 0;
 //}
 
-static void BM_Setup(benchmark::State &state) {
-    int k = 5;// The number of sanitizor
-    int bits = 256;
+static void DSS_Setup(benchmark::State &state) {
     initState(state_DSS);
     for (auto _: state) {
         Params pp = Setup();
     }
 }
 
-static void BM_KeyGen(benchmark::State &state) {
-    int k = 5;// The number of sanitizor
-    int bits = 256;
+static void DSS_KeyGen(benchmark::State &state) {
     initState(state_DSS);
     Params pp = Setup();
 
     KeyPair keyPair_san;
     for (auto _: state) {
-        vector<mpz_class> sk = KeyGen(pp, keyPair_san, k, bits);
+        vector<mpz_class> sk = KeyGen(pp, keyPair_san, SAN, BITS);
     }
 }
 
-static void BM_Sign(benchmark::State &state) {
-    int k = 5;// The number of sanitizor
-    int bits = 256;
+static void DSS_Sign(benchmark::State &state) {
     initState(state_DSS);
     Params pp = Setup();
 
     KeyPair keyPair_san;
-    vector<mpz_class> sk = KeyGen(pp, keyPair_san, k, bits);
+    vector<mpz_class> sk = KeyGen(pp, keyPair_san, SAN, BITS);
 
     KeyPair keyPair_sign;
     keyPair_sign.sk = rand_mpz(state_DSS);
@@ -344,14 +400,12 @@ static void BM_Sign(benchmark::State &state) {
     }
 }
 
-static void BM_Sanitizing(benchmark::State &state) {
-    int k = 5;// The number of sanitizor
-    int bits = 256;
+static void DSS_Sanitizing(benchmark::State &state) {
     initState(state_DSS);
     Params pp = Setup();
 
     KeyPair keyPair_san;
-    vector<mpz_class> sk = KeyGen(pp, keyPair_san, k, bits);
+    vector<mpz_class> sk = KeyGen(pp, keyPair_san, SAN, BITS);
 
     KeyPair keyPair_sign;
     keyPair_sign.sk = rand_mpz(state_DSS);
@@ -364,14 +418,12 @@ static void BM_Sanitizing(benchmark::State &state) {
     }
 }
 
-static void BM_Verify(benchmark::State &state) {
-    int k = 5;// The number of sanitizor
-    int bits = 256;
+static void DSS_Verify(benchmark::State &state) {
     initState(state_DSS);
     Params pp = Setup();
 
     KeyPair keyPair_san;
-    vector<mpz_class> sk = KeyGen(pp, keyPair_san, k, bits);
+    vector<mpz_class> sk = KeyGen(pp, keyPair_san, SAN, BITS);
 
     KeyPair keyPair_sign;
     keyPair_sign.sk = rand_mpz(state_DSS);
@@ -385,14 +437,12 @@ static void BM_Verify(benchmark::State &state) {
     }
 }
 
-void BM_Proof(benchmark::State &state) {
-    int k = 5;// The number of sanitizor
-    int bits = 256;
+void DSS_Proof(benchmark::State &state) {
     initState(state_DSS);
     Params pp = Setup();
 
     KeyPair keyPair_san;
-    vector<mpz_class> sk = KeyGen(pp, keyPair_san, k, bits);
+    vector<mpz_class> sk = KeyGen(pp, keyPair_san, SAN, BITS);
 
     KeyPair keyPair_sign;
     keyPair_sign.sk = rand_mpz(state_DSS);
@@ -406,14 +456,12 @@ void BM_Proof(benchmark::State &state) {
     }
 }
 
-void BM_Judge(benchmark::State &state) {
-    int k = 5;// The number of sanitizor
-    int bits = 256;
+void DSS_Judge(benchmark::State &state) {
     initState(state_DSS);
     Params pp = Setup();
 
     KeyPair keyPair_san;
-    vector<mpz_class> sk = KeyGen(pp, keyPair_san, k, bits);
+    vector<mpz_class> sk = KeyGen(pp, keyPair_san, SAN, BITS);
 
     KeyPair keyPair_sign;
     keyPair_sign.sk = rand_mpz(state_DSS);
@@ -428,14 +476,43 @@ void BM_Judge(benchmark::State &state) {
     }
 }
 
+void DSS_Join(benchmark::State &state) {
+
+    initState(state_DSS);
+    Params pp = Setup();
+
+    KeyPair keyPair_san;
+    vector<mpz_class> sk = KeyGen(pp, keyPair_san, SAN, BITS);
+
+    for (auto _: state) {
+        Join(pp, keyPair_san.sk, BITS,N);
+    }
+}
+
+void DSS_Revoke(benchmark::State &state) {
+
+    initState(state_DSS);
+    Params pp = Setup();
+
+    KeyPair keyPair_san;
+    vector<mpz_class> sk = KeyGen(pp, keyPair_san, SAN + N, BITS);
+    vector<mpz_class> sk_star_lists(sk.begin(), sk.begin() + N);
+
+    for (auto _: state) {
+        Revoke(pp, keyPair_san.sk, sk_star_lists);
+    }
+}
+
 // register
-BENCHMARK(BM_Setup);
-BENCHMARK(BM_KeyGen);
-BENCHMARK(BM_Sign);
-BENCHMARK(BM_Sanitizing);
-BENCHMARK(BM_Verify);
-BENCHMARK(BM_Proof);
-BENCHMARK(BM_Judge);
+BENCHMARK(DSS_Setup);
+BENCHMARK(DSS_KeyGen);
+BENCHMARK(DSS_Sign);
+BENCHMARK(DSS_Sanitizing);
+BENCHMARK(DSS_Verify);
+BENCHMARK(DSS_Proof);
+BENCHMARK(DSS_Judge);
+BENCHMARK(DSS_Join);
+BENCHMARK(DSS_Revoke);
 
 // run benchmark
 BENCHMARK_MAIN();

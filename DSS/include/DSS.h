@@ -114,3 +114,28 @@ KeyPair Proof(Params pp,Sigma sigma,mpz_class t);
  * @return Returns true if the proof is valid and the signature is original; false otherwise.
  */
 bool Judge(KeyPair pi,Sigma sigma);
+
+/**
+ * Registers n new sanitizers into the system by generating their secret keys and
+ * enabling them to participate in the construction of sanitized signatures.
+ * This function uses the provided system parameters, base secret key, and security length
+ * to derive individual keys for each sanitizer, and updates the system’s public parameters accordingly.
+ *
+ * @param pp The public parameters of the system.
+ * @param sk_san A sanitizer secret key. Technically not required for key generation,
+ *               but included here to simplify the function interface.
+ * @param bits The security parameter specifying the key length in bits.
+ * @param n The number of new sanitizers to be added to the system.
+ */
+void Join(Params &pp, mpz_class sk_san, int bits, int n);
+
+/**
+ * Revokes a sanitizer from the system, preventing their secret key from contributing
+ * to future sanitized signatures.
+ *
+ * @param pp The public parameters of the system.
+ * @param sk_san A sanitizer secret key. Technically not required for key generation,
+ *               but included here to simplify the function interface.
+ * @param sk_star_list A list of secret keys corresponding to the sanitizers to be revoked.
+ */
+void Revoke(Params &pp, mpz_class sk_san, const vector<mpz_class> &sk_star_list);
