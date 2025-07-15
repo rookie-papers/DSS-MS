@@ -16,7 +16,8 @@ std::string Package_to_str(TransmissionPackage pkg) {
 
         << mpz_to_str(pkg.sk_i) << "#"
         << ECP_to_str(pkg.PK_san) << "#"
-        << ECP_to_str(pkg.PK_sig);
+        << ECP_to_str(pkg.PK_sig) << "#"
+        << pkg.timestamp;
 
     return oss.str();
 }
@@ -33,7 +34,7 @@ TransmissionPackage str_to_Package(string str) {
     }
     fields.push_back(str.substr(start));
 
-    if (fields.size() != 12) {
+    if (fields.size() != 13) {
         throw std::runtime_error("Invalid transmission package format.");
     }
 
@@ -51,7 +52,7 @@ TransmissionPackage str_to_Package(string str) {
     pkg.sk_i = str_to_mpz(fields[9]);
     pkg.PK_san = str_to_ECP(fields[10]);
     pkg.PK_sig = str_to_ECP(fields[11]);
-
+    pkg.timestamp = stoll(fields[12]);
 
     return pkg;
 }

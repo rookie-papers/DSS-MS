@@ -26,6 +26,10 @@ void on_message(server* s, websocketpp::connection_hdl hdl, message_ptr msg) {
     pkg_to_C.sigma = pkg.sigma;
     pkg_to_C.PK_san = pkg.PK_san;
     pkg_to_C.PK_sig = pkg.PK_sig;
+
+    auto now = std::chrono::system_clock::now();
+    pkg_to_C.timestamp = std::chrono::duration_cast<std::chrono::milliseconds>(
+            now.time_since_epoch()).count();
     // 4. Connect to Verifier and forward the data as a client
     std::string output = Package_to_str(pkg_to_C);
     forward_to_C(output);  // Custom function, see below
@@ -72,7 +76,8 @@ int main() {
         echo_server.clear_access_channels(websocketpp::log::alevel::frame_payload);
         echo_server.init_asio();
         echo_server.set_message_handler(bind(&on_message, &echo_server, _1, _2));
-        echo_server.listen(9002);
+        boost::asio::ip::address ip = boost::asio::ip::address::from_string("0.0.0.0");
+        echo_server.listen(boost::asio::ip::tcp::endpoint(ip, 9002));
         echo_server.start_accept();
         std::cout << "Sanitizer is listening on port 9002..." << std::endl;
         echo_server.run();

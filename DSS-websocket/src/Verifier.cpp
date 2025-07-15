@@ -12,9 +12,13 @@ void on_message(server* s, websocketpp::connection_hdl hdl, message_ptr msg) {
     std::string payload = msg->get_payload();
     std::cout << "[C] Received message from B\n" << endl << payload;
     TransmissionPackage pkg = str_to_Package(payload);
-    showPackage(pkg);
+    auto now = std::chrono::system_clock::now();
+    long long currentTimestamp = std::chrono::duration_cast<std::chrono::milliseconds>(
+            now.time_since_epoch()).count();
+//    showPackage(pkg);
     // verify signature
     int res = Verify(pkg.pp, pkg.sigma, pkg.PK_san, pkg.PK_sig);
+    cout << endl << "Communication relay is: " << (currentTimestamp - pkg.timestamp) << " ms" << endl;
     cout << "Verify result : " << res << endl;
 }
 
@@ -26,7 +30,8 @@ int main() {
         C_server.clear_access_channels(websocketpp::log::alevel::frame_payload);
         C_server.init_asio();
         C_server.set_message_handler(bind(&on_message, &C_server, _1, _2));
-        C_server.listen(9003);
+        boost::asio::ip::address ip = boost::asio::ip::address::from_string("0.0.0.0");
+        C_server.listen(boost::asio::ip::tcp::endpoint(ip, 9003));
         C_server.start_accept();
         std::cout << "Verifier is listening on port 9003..." << std::endl;
         C_server.run();

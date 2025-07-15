@@ -9,11 +9,12 @@
  * essential elements used during a multi-party communication protocol.
  */
 typedef struct {
-    Params pp;         ///< Public parameters
-    Sigma sigma;       ///< sanitizing signature data
-    mpz_class sk_i;    ///< Secret key of participant i
-    ECP PK_san;        ///< Public key of the sanitizer
-    ECP PK_sig;        ///< Public key of the original signer
+    Params pp;             ///< Public parameters
+    Sigma sigma;           ///< sanitizing signature data
+    mpz_class sk_i;        ///< Secret key of participant i
+    ECP PK_san;            ///< Public key of the sanitizer
+    ECP PK_sig;            ///< Public key of the original signer
+    long long timestamp;   ///< Current timestamp (ms)
 } TransmissionPackage;
 
 /**
