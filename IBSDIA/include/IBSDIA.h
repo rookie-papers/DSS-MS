@@ -1,4 +1,4 @@
-#include "../../common/include/Tools.h"
+#include "Tools.h"
 #include "../include/SSig.h"
 
 // System public parameters for DIA scheme

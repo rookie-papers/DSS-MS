@@ -1,4 +1,4 @@
-#include "../../common/include/Tools.h"
+#include "Tools.h"
 
 // Structure representing public parameters for Schnorr signatures
 typedef struct {
