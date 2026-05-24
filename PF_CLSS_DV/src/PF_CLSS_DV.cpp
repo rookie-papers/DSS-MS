@@ -1,6 +1,7 @@
 #include "../include/PF_CLSS_DV.h"
 
-namespace PF_CLSS_DV {
+namespace PF_CLSS_DV
+{
 
     // Instantiate global random number states
     csprng rng;
@@ -9,7 +10,8 @@ namespace PF_CLSS_DV {
     // =====================================================================
     // Setup: generate system parameters and master key
     // =====================================================================
-    tuple<Params, MasterKey> Setup() {
+    tuple<Params, MasterKey> Setup()
+    {
         mpz_class q = getCurveOrder();
 
         ECP P;
@@ -29,7 +31,8 @@ namespace PF_CLSS_DV {
     // =====================================================================
     // VerKeyGen: generate verifier key pair
     // =====================================================================
-    VerifierKey VerKeyGen(Params pp) {
+    VerifierKey VerKeyGen(Params pp)
+    {
         mpz_class x_V = rand_mpz(state_gmp) % pp.q;
 
         ECP PK_V;
@@ -42,7 +45,8 @@ namespace PF_CLSS_DV {
     // =====================================================================
     // PartialKeyGen: KGC generates partial key for signer ID_O
     // =====================================================================
-    PartialKey PartialKeyGen(Params pp, MasterKey msk, string ID_O) {
+    PartialKey PartialKeyGen(Params pp, MasterKey msk, string ID_O)
+    {
         mpz_class r = rand_mpz(state_gmp) % pp.q;
 
         ECP R;
@@ -60,7 +64,8 @@ namespace PF_CLSS_DV {
     // =====================================================================
     // SinKeyGen: signer generates full key pair from partial key
     // =====================================================================
-    tuple<SignerPubKey, SignerPrivKey> SinKeyGen(Params pp, string ID_O, PartialKey pak) {
+    tuple<SignerPubKey, SignerPrivKey> SinKeyGen(Params pp, string ID_O, PartialKey pak)
+    {
         mpz_class x_O = rand_mpz(state_gmp) % pp.q;
 
         ECP X_O;
@@ -81,7 +86,7 @@ namespace PF_CLSS_DV {
     {
         mpz_class q = pp.q;
         mpz_class x_O = SK_O.x_O;
-        mpz_class d   = SK_O.d;
+        mpz_class d = SK_O.d;
 
         // 1. Random blinding factors
         mpz_class t1 = rand_mpz(state_gmp) % q;
@@ -139,7 +144,7 @@ namespace PF_CLSS_DV {
     {
         mpz_class q = pp.q;
 
-        mpz_class h21    = HashToZp(M.m1, ID_O);
+        mpz_class h21 = HashToZp(M.m1, ID_O);
         mpz_class h21_prime = HashToZp(m1_prime, ID_O);
 
         // diff = h21' - h21  (mod q, non-negative)

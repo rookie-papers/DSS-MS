@@ -7,9 +7,11 @@ using namespace std;
 // =====================================================================
 // Singleton random-number initializer
 // =====================================================================
-static void InitRNGs() {
+static void InitRNGs()
+{
     static bool initialized = false;
-    if (!initialized) {
+    if (!initialized)
+    {
         initState(PF_CLSS_DV::state_gmp);
         initRNG(&PF_CLSS_DV::rng);
         initialized = true;
@@ -95,45 +97,54 @@ static void InitRNGs() {
 // Google Benchmark macros
 // =====================================================================
 
-static void BM_Setup(benchmark::State &state) {
+static void BM_Setup(benchmark::State &state)
+{
     InitRNGs();
-    for (auto _ : state) {
+    for (auto _ : state)
+    {
         auto [pp, msk] = PF_CLSS_DV::Setup();
     }
 }
 BENCHMARK(BM_Setup);
 
-static void BM_VerKeyGen(benchmark::State &state) {
+static void BM_VerKeyGen(benchmark::State &state)
+{
     InitRNGs();
     auto [pp, msk] = PF_CLSS_DV::Setup();
-    for (auto _ : state) {
+    for (auto _ : state)
+    {
         auto VK = PF_CLSS_DV::VerKeyGen(pp);
     }
 }
 BENCHMARK(BM_VerKeyGen);
 
-static void BM_PartialKeyGen(benchmark::State &state) {
+static void BM_PartialKeyGen(benchmark::State &state)
+{
     InitRNGs();
     auto [pp, msk] = PF_CLSS_DV::Setup();
     string ID_O = "BenchSigner";
-    for (auto _ : state) {
+    for (auto _ : state)
+    {
         auto pak = PF_CLSS_DV::PartialKeyGen(pp, msk, ID_O);
     }
 }
 BENCHMARK(BM_PartialKeyGen);
 
-static void BM_SinKeyGen(benchmark::State &state) {
+static void BM_SinKeyGen(benchmark::State &state)
+{
     InitRNGs();
     auto [pp, msk] = PF_CLSS_DV::Setup();
     string ID_O = "BenchSigner";
     auto pak = PF_CLSS_DV::PartialKeyGen(pp, msk, ID_O);
-    for (auto _ : state) {
+    for (auto _ : state)
+    {
         auto [PK_O, SK_O] = PF_CLSS_DV::SinKeyGen(pp, ID_O, pak);
     }
 }
 BENCHMARK(BM_SinKeyGen);
 
-static void BM_Sign(benchmark::State &state) {
+static void BM_Sign(benchmark::State &state)
+{
     InitRNGs();
     auto [pp, msk] = PF_CLSS_DV::Setup();
     string ID_O = "BenchSigner";
@@ -141,13 +152,15 @@ static void BM_Sign(benchmark::State &state) {
     auto pak = PF_CLSS_DV::PartialKeyGen(pp, msk, ID_O);
     auto [PK_O, SK_O] = PF_CLSS_DV::SinKeyGen(pp, ID_O, pak);
     PF_CLSS_DV::Message M{"bench_m1", "bench_m2"};
-    for (auto _ : state) {
+    for (auto _ : state)
+    {
         auto [sig, at] = PF_CLSS_DV::Sign(pp, ID_O, SK_O, M, VK.PK_V);
     }
 }
 BENCHMARK(BM_Sign);
 
-static void BM_Sanitize(benchmark::State &state) {
+static void BM_Sanitize(benchmark::State &state)
+{
     InitRNGs();
     auto [pp, msk] = PF_CLSS_DV::Setup();
     string ID_O = "BenchSigner";
@@ -157,13 +170,15 @@ static void BM_Sanitize(benchmark::State &state) {
     PF_CLSS_DV::Message M{"bench_m1", "bench_m2"};
     auto [sig, at] = PF_CLSS_DV::Sign(pp, ID_O, SK_O, M, VK.PK_V);
     string m1_prime = "sanitized_m1";
-    for (auto _ : state) {
+    for (auto _ : state)
+    {
         auto [M_prime, sig_prime] = PF_CLSS_DV::Sanitize(pp, ID_O, M, sig, at, m1_prime);
     }
 }
 BENCHMARK(BM_Sanitize);
 
-static void BM_Verify(benchmark::State &state) {
+static void BM_Verify(benchmark::State &state)
+{
     InitRNGs();
     auto [pp, msk] = PF_CLSS_DV::Setup();
     string ID_O = "BenchSigner";
@@ -172,7 +187,8 @@ static void BM_Verify(benchmark::State &state) {
     auto [PK_O, SK_O] = PF_CLSS_DV::SinKeyGen(pp, ID_O, pak);
     PF_CLSS_DV::Message M{"bench_m1", "bench_m2"};
     auto [sig, at] = PF_CLSS_DV::Sign(pp, ID_O, SK_O, M, VK.PK_V);
-    for (auto _ : state) {
+    for (auto _ : state)
+    {
         bool ok = PF_CLSS_DV::Verify(pp, ID_O, PK_O, VK, M, sig);
         benchmark::DoNotOptimize(ok);
     }
