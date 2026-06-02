@@ -28,7 +28,7 @@ void on_message(client *c, websocketpp::connection_hdl hdl, message_ptr msg) {
 
 int main() {
     client c;
-    std::string uri = "ws://localhost:9002";
+    std::string uri = "ws://192.168.206.129:9002";
 
     try {
         // === 数据准备 ===

@@ -23,7 +23,7 @@ void on_message(server* s, websocketpp::connection_hdl hdl, message_ptr msg) {
     // 3. Construct a new package (to be sent to C, no longer includes sk_i)
     TransmissionPackage pkg_to_C;
     pkg_to_C.pp = pkg.pp;
-    pkg_to_C.sigma = pkg.sigma;
+    pkg_to_C.sigma = sigma_p;
     pkg_to_C.PK_san = pkg.PK_san;
     pkg_to_C.PK_sig = pkg.PK_sig;
 
@@ -38,7 +38,7 @@ void on_message(server* s, websocketpp::connection_hdl hdl, message_ptr msg) {
 void forward_to_C(const std::string &msg_to_send) {
     typedef websocketpp::client<websocketpp::config::asio_client> client;
     client c;
-    std::string uri = "ws://localhost:9003"; // Verifier's listening address
+    std::string uri = "ws://192.168.206.130:9003"; // Verifier's listening address
     // === Network configuration ===
     c.set_access_channels(websocketpp::log::alevel::all);
     c.clear_access_channels(websocketpp::log::alevel::frame_payload);
