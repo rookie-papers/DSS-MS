@@ -60,7 +60,7 @@ endfunction()
 # ============================================================================
 # 4. Target Registration
 # ============================================================================
-add_scheme_executable(DSS)
+add_subdirectory(DSS)
 add_scheme_executable(BFLS10)
 add_scheme_executable(DVAS)
 add_scheme_executable(IBSDIA)

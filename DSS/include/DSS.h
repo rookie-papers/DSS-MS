@@ -1,141 +1,121 @@
-#include <iostream>
+#ifndef DSS_MS_DSS_H
+#define DSS_MS_DSS_H
+
 #include "Tools.h"
 
+#include <array>
+#include <cstdint>
+#include <functional>
+#include <map>
+#include <optional>
+#include <set>
+#include <string_view>
 
-typedef struct {
-    mpz_class q;
-    ECP P;
-    mpz_class u_s;
-}Params;
+namespace DSS {
 
-typedef struct {
-    mpz_class sk;
-    ECP PK;
-}KeyPair;
+using Id = std::uint64_t;
+using SystemId = std::array<unsigned char, 16>;
+using Secret = std::array<unsigned char, 32>;
 
+struct Params { mpz_class q; ECP P; };
+struct KeyPair { mpz_class sk; ECP pk; };
+struct Member { Id id; mpz_class modulus; Secret key; };
+struct PublicMember { Id id; mpz_class modulus; };
 
-typedef struct {
-    mpz_class m0,m;
-    ECP R,T;
-    mpz_class z,s;
-}Sigma;
+struct Manifest {
+    SystemId system;
+    std::uint64_t epoch;
+    Secret nonce;
+    std::vector<PublicMember> members;
+    std::optional<ECP> sanitizer;
+    mpz_class sx;
+    ECP commitment;
+    mpz_class response;
+};
 
+class AcceptedEpoch {
+public:
+    const Manifest& manifest() const { return manifest_; }
+    const Secret& contextDigest() const { return digest_; }
 
-/**
- * Check whether two integers a and b are coprime.
- * @param a First integer.
- * @param b Second integer.
- * @return True if a and b are coprime; otherwise, false.
- */
-bool are_coprime(const mpz_class &a, const mpz_class &b);
+private:
+    AcceptedEpoch(Manifest manifest, Secret digest)
+        : manifest_(std::move(manifest)), digest_(digest) {}
+    Manifest manifest_;
+    Secret digest_;
 
-/**
- * Generate public parameters for the DSS-MS scheme.
- * @return A structure containing the generated public parameters.
- */
+    friend std::optional<AcceptedEpoch> AcceptEpoch(const Params&, const SystemId&,
+        ECP, std::string_view, std::uint64_t);
+};
+
+struct Message {
+    SystemId system;
+    std::uint64_t epoch;
+    Id order;
+    std::string immutable;
+    std::vector<bool> editable;
+    std::vector<std::string> blocks;
+};
+
+struct Signature { ECP R; mpz_class z, s; ECP T; };
+struct SignedOrder { Message message; Signature signature; };
+struct Original { SignedOrder order; mpz_class randomness; };
+struct Evidence { SignedOrder original, disputed; ECP U; mpz_class v; };
+struct AuditEvent { Id member, order; std::uint64_t epoch; Secret outputDigest; };
+using AuditSink = std::function<void(const AuditEvent&)>;
+
 Params Setup();
+KeyPair KGen(const Params& pp);
+SystemId NewSystemId();
 
-/**
- * Generate keys for the DSS-MS scheme.
- * @param pp Public parameters.
- * @param keyPair Output parameter to store the signing key pair.
- * @param k Number of sanitizers.
- * @param bits Key length in bits for each sanitizer (default: 256 bits).
- * @return A vector of private keys for the sanitizers.
- */
-vector<mpz_class> KeyGen(Params &pp, KeyPair &keyPair, int k, int bits);
+class Authority {
+public:
+    explicit Authority(const Params& pp, std::size_t memberCount);
+    const SystemId& system() const { return system_; }
+    ECP verificationKey() const { return auth_.pk; }
+    const Member& member(Id id) const { return active_.at(id); }
+    Manifest Publish();
+    Manifest Join(std::size_t count);
+    Manifest Revoke(const std::vector<Id>& ids);
 
-/**
- * Hash function H_ch(m, T) used in the chameleon hash component.
- * @param m Message.
- * @param T G_1 element.
- * @return Hash output as a large integer.
- */
-mpz_class H_ch(mpz_class m, ECP T);
+private:
+    using Members = std::map<Id, Member>;
+    void addMembers(Members& target, std::set<mpz_class>& used, Id& nextId, std::size_t count) const;
+    Manifest EpochGen(const Members& members) const;
 
-/**
- * Hash function H(m0, R, CH) used in the sanitizable signature scheme.
- * @param m0 Original message (Non-Sanitizable part).
- * @param R Commitment or randomness component.
- * @param CH Chameleon hash component.
- * @return Hash output as a large integer.
- */
-mpz_class H(mpz_class m0, ECP R, ECP CH);
+    Params pp_;
+    SystemId system_;
+    KeyPair auth_;
+    Members active_;
+    std::set<mpz_class> usedModuli_;
+    std::uint64_t epoch_ = 0;
+    Id nextId_ = 1;
+};
 
-/**
- * Signing algorithm: the signer generates a signature on the original message.
- * @param pp Public parameters.
- * @param sk Signing private key.
- * @param PK_s Sanitizer’s public key.
- * @param t Proof key.
- * @return The generated signature.
- */
-Sigma Sign(Params pp, mpz_class sk, ECP PK_s ,mpz_class& t);
+std::string EncodeContext(const Manifest& manifest);
+std::string EncodeManifest(const Manifest& manifest);
+std::string EncodePoint(ECP point);
+std::optional<ECP> DecodePublicKey(std::string_view bytes);
+std::string EncodeSignature(const Signature& signature);
+std::string EncodeOrder(const SignedOrder& order);
+std::optional<SignedOrder> DecodeOrder(const Params& pp, std::string_view bytes);
+std::string EncodeEvidence(const Evidence& evidence);
+std::size_t BitLength(const mpz_class& value);
+std::optional<AcceptedEpoch> AcceptEpoch(const Params& pp, const SystemId& system,
+    ECP verificationKey, std::string_view wire, std::uint64_t minimumEpoch);
+std::optional<mpz_class> Recover(const Params& pp, const Member& member, const AcceptedEpoch& epoch);
+bool MatchesSanitizerKey(const Params& pp, const AcceptedEpoch& epoch, const mpz_class& candidate);
+std::optional<Original> Sign(const Params& pp, const Message& message, const KeyPair& signer,
+    const AcceptedEpoch& epoch, std::uint64_t minimumEpoch);
+bool Verify(const Params& pp, const SignedOrder& order, ECP signer, const AcceptedEpoch& epoch,
+    std::uint64_t minimumEpoch);
+std::optional<SignedOrder> Sanitizing(const Params& pp, const SignedOrder& original,
+    const std::vector<std::string>& replacement, const Member& member, ECP signer,
+    const AcceptedEpoch& epoch, std::uint64_t minimumEpoch, const AuditSink& audit = {});
+std::optional<Evidence> Proof(const Params& pp, const Original& original,
+    const SignedOrder& disputed, ECP signer, const AcceptedEpoch& epoch);
+bool Judge(const Params& pp, const Evidence& evidence, ECP signer, const AcceptedEpoch& epoch);
 
-/**
- * Sanitization algorithm: a sanitizer transforms a signature using its private key.
- * @param pp Public parameters.
- * @param sigma Original signature.
- * @param sk_i Private key of the i-th sanitizer.
- * @param PK_s Sanitizer’s public key.
- * @return The sanitized signature.
- */
-Sigma Sanitizing(Params pp, Sigma sigma, mpz_class sk_i, ECP PK_s);
+} // namespace DSS
 
-/**
- * Verify the validity of a signature (original or sanitized).
- * @param pp Public parameters.
- * @param sigma Signature to be verified.
- * @param PK_s sanitizer’s public key.
- * @param PK Public key of the signer.
- * @return Verification result: 1 if valid; 0 if invalid.
- */
-int Verify(Params pp, Sigma sigma, ECP PK_s, ECP PK);
-
-/**
- * Only the original signer knows the secret t such that T = tP in the signature.
- * Although a sanitizer can construct a new T', they do not know log_P(T').
- * This property allows the original signer to prove that a given signature is indeed theirs.
- *
- * @param pp Public parameters.
- * @param sigma The signature to be proven as original.
- * @param t The trapdoor value (secret) required to generate the proof.
- * @return Returns a non-interactive zero-knowledge proof (NIZK) for the relation t: T = tP.
- */
-KeyPair Proof(Params pp,Sigma sigma,mpz_class t);
-
-/**
- * Verifies the zero-knowledge proof pi against the given signature.
- * If the proof is valid, the signature is confirmed to be from the original signer.
- * If the proof is invalid or cannot be provided, the signature is considered sanitized.
- *
- * @param pi The zero-knowledge proof.
- * @param sigma The signature to be verified.
- * @return Returns true if the proof is valid and the signature is original; false otherwise.
- */
-bool Judge(KeyPair pi,Sigma sigma);
-
-/**
- * Registers n new sanitizers into the system by generating their secret keys and
- * enabling them to participate in the construction of sanitized signatures.
- * This function uses the provided system parameters, base secret key, and security length
- * to derive individual keys for each sanitizer, and updates the system’s public parameters accordingly.
- *
- * @param pp The public parameters of the system.
- * @param sk_san A sanitizer secret key. Technically not required for key generation,
- *               but included here to simplify the function interface.
- * @param bits The security parameter specifying the key length in bits.
- * @param n The number of new sanitizers to be added to the system.
- */
-void Join(Params &pp, mpz_class sk_san, int bits, int n);
-
-/**
- * Revokes a sanitizer from the system, preventing their secret key from contributing
- * to future sanitized signatures.
- *
- * @param pp The public parameters of the system.
- * @param sk_san A sanitizer secret key. Technically not required for key generation,
- *               but included here to simplify the function interface.
- * @param sk_star_list A list of secret keys corresponding to the sanitizers to be revoked.
- */
-void Revoke(Params &pp, mpz_class sk_san, const vector<mpz_class> &sk_star_list);
+#endif
